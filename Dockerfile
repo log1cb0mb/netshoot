@@ -5,9 +5,33 @@ RUN apt-get update && apt-get install -y \
   curl \
   wget
 
-RUN /tmp/fetch_binaries.sh
+# RUN /tmp/fetch_binaries.sh
 
-FROM alpine:3.18.0
+FROM alpine as httping-build
+
+RUN apk add --no-cache \
+  make \
+  build-base \ 
+  openssl-dev \
+  openssl-libs-static \
+  ncurses-dev \
+  ncurses-static \
+  gettext-dev \
+  gettext-static \
+  fftw-dev \
+  fftw-double-libs \
+  fftw-long-double-libs
+
+WORKDIR /httping-source
+
+COPY httping-source .
+
+# make a static binary, and link in gettext
+ENV LDFLAGS="-static -lintl"
+
+RUN ./configure --with-tfo --with-ncurses --with-openssl --with-fftw3 && make
+
+FROM alpine:3.19.0
 
 RUN set -ex \
     && echo "http://dl-cdn.alpinelinux.org/alpine/edge/main" >> /etc/apk/repositories \
@@ -38,7 +62,6 @@ RUN set -ex \
     iptraf-ng \
     iputils \
     ipvsadm \
-    httpie \
     jq \
     libc6-compat \
     liboping \
@@ -72,20 +95,23 @@ RUN set -ex \
     perl-crypt-ssleay \
     perl-net-ssleay
 
-# Installing ctop - top-like container monitor
-COPY --from=fetcher /tmp/ctop /usr/local/bin/ctop
+# # Installing ctop - top-like container monitor
+# COPY --from=fetcher /tmp/ctop /usr/local/bin/ctop
 
-# Installing calicoctl
-COPY --from=fetcher /tmp/calicoctl /usr/local/bin/calicoctl
+# # Installing calicoctl
+# COPY --from=fetcher /tmp/calicoctl /usr/local/bin/calicoctl
 
-# Installing termshark
-COPY --from=fetcher /tmp/termshark /usr/local/bin/termshark
+# # Installing termshark
+# COPY --from=fetcher /tmp/termshark /usr/local/bin/termshark
 
-# Installing grpcurl
-COPY --from=fetcher /tmp/grpcurl /usr/local/bin/grpcurl
+# # Installing grpcurl
+# COPY --from=fetcher /tmp/grpcurl /usr/local/bin/grpcurl
 
-# Installing fortio
-COPY --from=fetcher /tmp/fortio /usr/local/bin/fortio
+# # Installing fortio
+# COPY --from=fetcher /tmp/fortio /usr/local/bin/fortio
+
+# Installing Httping
+COPY --from=httping-build /httping-source/httping /usr/local/bin/
 
 # Setting User and Home
 USER root
